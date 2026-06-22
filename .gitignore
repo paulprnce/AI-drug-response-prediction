@@ -16,10 +16,9 @@ env/
 
 # Data & models (generated at runtime)
 data/*.csv
-models/*.pkl
 models/*.png
+models/*.pkl
 models/*.json
-
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb_checkpoints

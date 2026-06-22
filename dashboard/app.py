@@ -29,17 +29,39 @@ DATA_PATH = "data/patient_data.csv"
 # ── Load artifacts ──────────────────────────────────────────────────────────────
 @st.cache_resource
 def load_artifacts():
-    model     = joblib.load(os.path.join(MODEL_DIR, "best_model.pkl"))
-    scaler    = joblib.load(os.path.join(MODEL_DIR, "scaler.pkl"))
-    encoders  = joblib.load(os.path.join(MODEL_DIR, "encoders.pkl"))
-    feat_cols = joblib.load(os.path.join(MODEL_DIR, "feature_cols.pkl"))
-    with open(os.path.join(MODEL_DIR, "results.json")) as f:
+    import os, subprocess, sys
+    
+    if not os.path.exists("models/best_model.pkl"):
+        os.makedirs("models", exist_ok=True)
+        os.makedirs("data", exist_ok=True)
+        
+        # Generate data
+        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+        from src.data_generator import generate_patient_data
+        df = generate_patient_data(1200)
+        df.to_csv("data/patient_data.csv", index=False)
+        
+        # Train
+        from src.train import train_and_evaluate
+        train_and_evaluate("data/patient_data.csv", "models/")
+
+    model     = joblib.load("models/best_model.pkl")
+    scaler    = joblib.load("models/scaler.pkl")
+    encoders  = joblib.load("models/encoders.pkl")
+    feat_cols = joblib.load("models/feature_cols.pkl")
+    with open("models/results.json") as f:
         results = json.load(f)
     return model, scaler, encoders, feat_cols, results
 
 @st.cache_data
 def load_data():
-    return pd.read_csv(DATA_PATH)
+    if not os.path.exists("data/patient_data.csv"):
+        from src.data_generator import generate_patient_data
+        os.makedirs("data", exist_ok=True)
+        df = generate_patient_data(1200)
+        df.to_csv("data/patient_data.csv", index=False)
+        return df
+    return pd.read_csv("data/patient_data.csv")
 
 
 def preprocess_patient(patient_dict, scaler, encoders):
@@ -97,9 +119,13 @@ try:
     model, scaler, encoders, feat_cols, results = load_artifacts()
     df_all = load_data()
     artifacts_ready = True
-except Exception as e:
-    st.warning(f"⚠️ Models not trained yet. Run `python run_pipeline.py` first.\n\n`{e}`")
-    artifacts_ready = False
+except Exception:
+    with st.spinner("🔧 First-time setup: training models... (1-2 min)"):
+        import subprocess
+        subprocess.run(["python", "run_pipeline.py", "--skip-shap"], check=True)
+    model, scaler, encoders, feat_cols, results = load_artifacts()
+    df_all = load_data()
+    artifacts_ready = True
 
 if artifacts_ready:
     # ── Tab layout ──────────────────────────────────────────────────────────────
